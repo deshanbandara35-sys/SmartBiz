@@ -1,0 +1,7 @@
+{
+  "name": "SmartBIZ.LK Dashboard",
+  "description": "A comprehensive business management system featuring real-time analytics, inventory tracking, customer CRM, and automated invoicing, inspired by the SmartBIZ.LK design.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
