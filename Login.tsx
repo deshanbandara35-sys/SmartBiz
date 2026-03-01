@@ -2,16 +2,22 @@
 import React, { useState } from 'react';
 import { UserRole } from '../types';
 import { db, auth } from '../lib/firebase';
-import { collection, query, where, getDocs } from "@firebase/firestore";
-import { sendPasswordResetEmail, signInWithEmailAndPassword } from "@firebase/auth";
-import { X, Mail, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from "@firebase/firestore";
+import { sendPasswordResetEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "@firebase/auth";
+import { X, Mail, CheckCircle2, AlertCircle, ArrowRight, UserPlus, Building2, Phone, User } from 'lucide-react';
 
 interface LoginProps {
   onLogin: (role: UserRole, id: string) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
+  const [isRegistering, setIsRegistering] = useState(false);
   const [identifier, setIdentifier] = useState(''); // Can be username or email
+  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [businessName, setBusinessName] = useState('');
+  const [deliveryMethod, setDeliveryMethod] = useState<'Courier Service' | 'Post Office'>('Courier Service');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -28,6 +34,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setIsLoading(true);
 
     try {
+      if (isRegistering) {
+        // WhatsApp Registration Request Logic
+        const message = `Hello SmartBIZ, I would like to request access to the software.\n\nName: ${fullName}\nBusiness: ${businessName}\nEmail: ${email}\nMobile: ${mobileNumber}\nDelivery Method: ${deliveryMethod}`;
+        const encodedMessage = encodeURIComponent(message);
+        const whatsappUrl = `https://wa.me/94774748157?text=${encodedMessage}`;
+        
+        window.open(whatsappUrl, '_blank');
+        setIsLoading(false);
+        return;
+      }
+
       // 1. Check for Super Admin
       if (identifier === 'admin@smartbiz.lk' && password === 'admin123') {
         onLogin(UserRole.SUPER_ADMIN, 'ADMIN_ROOT');
@@ -42,7 +59,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         const q = query(ownersRef, where("username", "==", identifier));
         const querySnapshot = await getDocs(q);
         
-        if (!querySnapshot.empty) {
+        if (!querySnapshot.empty && querySnapshot.docs.length > 0) {
           emailToAuth = querySnapshot.docs[0].data().email;
         } else {
           throw new Error('Account not found. Please check your username.');
@@ -57,7 +74,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       const qStatus = query(ownersRef, where("email", "==", emailToAuth));
       const statusSnapshot = await getDocs(qStatus);
 
-      if (!statusSnapshot.empty) {
+      if (!statusSnapshot.empty && statusSnapshot.docs.length > 0) {
         const data = statusSnapshot.docs[0].data();
         if (data.status === 'Inactive') {
           setError('This account has been suspended. Please contact support.');
@@ -124,7 +141,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </h1>
         </div>
 
-        <h2 className="text-xl font-bold text-gray-800 mb-8">Log in to your account</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-8">{isRegistering ? 'Create your business account' : 'Log in to your account'}</h2>
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-xs font-bold border border-red-100 flex items-center gap-3 animate-in slide-in-from-top-2">
@@ -134,66 +151,156 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Username or Email</label>
-            <div className="relative">
-              <input 
-                type="text" 
-                placeholder="e.g. deshan35 or deshan@gmail.com"
-                className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[#1d70d1]/20 focus:border-[#1d70d1] outline-none text-gray-900 transition-all placeholder:text-gray-300 font-bold"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-          
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Secret Password</label>
-            <input 
-              type="password" 
-              placeholder="••••••••"
-              className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[#1d70d1]/20 focus:border-[#1d70d1] outline-none text-gray-900 transition-all font-bold"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
+          {isRegistering ? (
+            <>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Full Name</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input 
+                    type="text" 
+                    placeholder="e.g. John Doe"
+                    className="w-full pl-12 pr-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[#1d70d1]/20 focus:border-[#1d70d1] outline-none text-gray-900 transition-all placeholder:text-gray-300 font-bold"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Business Name</label>
+                <div className="relative">
+                  <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input 
+                    type="text" 
+                    placeholder="e.g. SmartBiz Solutions"
+                    className="w-full pl-12 pr-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[#1d70d1]/20 focus:border-[#1d70d1] outline-none text-gray-900 transition-all placeholder:text-gray-300 font-bold"
+                    value={businessName}
+                    onChange={(e) => setBusinessName(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Official Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input 
+                    type="email" 
+                    placeholder="e.g. contact@business.com"
+                    className="w-full pl-12 pr-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[#1d70d1]/20 focus:border-[#1d70d1] outline-none text-gray-900 transition-all placeholder:text-gray-300 font-bold"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Mobile Number</label>
+                <div className="relative">
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input 
+                    type="text" 
+                    placeholder="e.g. 077XXXXXXX"
+                    className="w-full pl-12 pr-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[#1d70d1]/20 focus:border-[#1d70d1] outline-none text-gray-900 transition-all placeholder:text-gray-300 font-bold"
+                    value={mobileNumber}
+                    onChange={(e) => setMobileNumber(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">How do you deliver your items?</label>
+                <select 
+                  className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[#1d70d1]/20 focus:border-[#1d70d1] outline-none text-gray-900 transition-all font-bold"
+                  value={deliveryMethod}
+                  onChange={(e) => setDeliveryMethod(e.target.value as any)}
+                  required
+                >
+                  <option value="Courier Service">Courier Service</option>
+                  <option value="Post Office">Post Office</option>
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Username or Email</label>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    placeholder="e.g. deshan35 or deshan@gmail.com"
+                    className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[#1d70d1]/20 focus:border-[#1d70d1] outline-none text-gray-900 transition-all placeholder:text-gray-300 font-bold"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Secret Password</label>
+                <input 
+                  type="password" 
+                  placeholder="••••••••"
+                  className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[#1d70d1]/20 focus:border-[#1d70d1] outline-none text-gray-900 transition-all font-bold"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+            </>
+          )}
 
-          <div className="flex items-center text-xs text-gray-400 pl-1">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" className="w-4 h-4 rounded-lg border-gray-300 text-[#1d70d1] focus:ring-[#1d70d1]" />
-              Keep me logged in
-            </label>
-          </div>
+          {!isRegistering && (
+            <div className="flex items-center text-xs text-gray-400 pl-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" className="w-4 h-4 rounded-lg border-gray-300 text-[#1d70d1] focus:ring-[#1d70d1]" />
+                Keep me logged in
+              </label>
+            </div>
+          )}
 
           <div className="space-y-4">
             <button 
               type="submit" 
               disabled={isLoading}
-              className={`w-full py-4.5 bg-[#1d70d1] hover:bg-[#1559a8] text-white font-black rounded-2xl shadow-xl shadow-blue-100 transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+              className={`w-full h-[55px] ${isRegistering ? 'bg-[#25D366] hover:bg-[#128C7E]' : 'bg-[#1d70d1] hover:bg-[#1559a8]'} text-white text-[18px] font-bold rounded-2xl shadow-xl hover:shadow-2xl transition-all transform hover:scale-[1.01] active:scale-[0.98] flex items-center justify-center gap-2 ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
                 <>
-                  Enter Dashboard
-                  <ArrowRight className="w-4 h-4" />
+                  {isRegistering ? 'Request Access via WhatsApp' : 'Enter Dashboard'}
+                  <ArrowRight className="w-5 h-5" />
                 </>
               )}
             </button>
 
-            <div className="text-center">
+            <div className="text-center space-y-2">
               <button 
                 type="button" 
-                onClick={() => {
-                  setResetMessage(null);
-                  setShowForgotModal(true);
-                }}
-                className="text-xs font-black text-[#1d70d1] hover:text-[#1559a8] transition-colors py-2 px-4 rounded-xl hover:bg-blue-50"
+                onClick={() => setIsRegistering(!isRegistering)}
+                className="text-xs font-black text-gray-500 hover:text-[#1d70d1] transition-colors py-2 px-4 rounded-xl hover:bg-gray-50 flex items-center justify-center gap-2 mx-auto"
               >
-                Forgot your password?
+                {isRegistering ? (
+                  <>Already have an account? <span className="text-[#1d70d1]">Log in</span></>
+                ) : (
+                  <>Don't have an account? <span className="text-[#1d70d1]">Register Business</span></>
+                )}
               </button>
+              
+              {!isRegistering && (
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setResetMessage(null);
+                    setShowForgotModal(true);
+                  }}
+                  className="text-xs font-black text-[#1d70d1] hover:text-[#1559a8] transition-colors py-2 px-4 rounded-xl hover:bg-blue-50"
+                >
+                  Forgot your password?
+                </button>
+              )}
             </div>
           </div>
         </form>
@@ -246,7 +353,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <button 
                 type="submit" 
                 disabled={resetLoading}
-                className={`w-full py-4.5 bg-gray-900 text-white font-black rounded-2xl shadow-xl hover:bg-black transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${resetLoading ? 'opacity-70' : ''}`}
+                className={`w-full h-[55px] bg-gray-900 text-white text-[18px] font-bold rounded-2xl shadow-xl hover:bg-black hover:shadow-2xl transition-all transform hover:scale-[1.01] active:scale-[0.98] flex items-center justify-center gap-2 ${resetLoading ? 'opacity-70' : ''}`}
               >
                 {resetLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : 'Send Reset Instructions'}
               </button>

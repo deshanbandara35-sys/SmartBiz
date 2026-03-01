@@ -53,7 +53,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onSaveProduct, onDelete
     }
   };
 
-  const filtered = products.filter(p => 
+  const filtered = (products || []).filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -93,7 +93,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onSaveProduct, onDelete
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.length > 0 ? filtered.map((p) => (
+              {(filtered || []).length > 0 ? (filtered || []).map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50 group transition-colors">
                   <td className="px-6 md:px-8 py-4 md:py-6">
                     <span className="font-mono text-[10px] md:text-xs text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-md">{p.id}</span>

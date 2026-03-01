@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { BusinessOwner } from '../types';
+import { BusinessOwner, SubscriptionRequest } from '../types';
 import { UserPlus, Search, Mail, Phone, Trash2, X, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
-import { collection, onSnapshot, setDoc, doc, deleteDoc } from "@firebase/firestore";
+import { collection, onSnapshot, setDoc, doc, deleteDoc, updateDoc } from "@firebase/firestore";
 import { createUserWithEmailAndPassword } from "@firebase/auth";
+import Swal from 'sweetalert2';
 
-const SuperAdmin: React.FC = () => {
+const SuperAdmin: React.FC<{ subscriptions: SubscriptionRequest[] }> = ({ subscriptions }) => {
   const [owners, setOwners] = useState<BusinessOwner[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -14,6 +15,7 @@ const SuperAdmin: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     businessName: '',
@@ -21,7 +23,8 @@ const SuperAdmin: React.FC = () => {
     email: '',
     phone: '',
     username: '',
-    password: ''
+    password: '',
+    deliveryMethod: 'Courier Service' as 'Courier Service' | 'Post Office'
   });
 
   useEffect(() => {
@@ -76,12 +79,31 @@ const SuperAdmin: React.FC = () => {
       await setDoc(doc(db, "users", id), {
         email: formData.email,
         businessName: formData.businessName,
-        isSubscribed: true,
-        createdAt: new Date().toISOString()
+        isSubscribed: false,
+        createdAt: new Date().toISOString(),
+        deliveryMethod: formData.deliveryMethod
+      });
+
+      // Initialize settings profile with delivery method
+      await setDoc(doc(db, "users", id, "settings", "profile"), {
+        businessName: formData.businessName,
+        ventureType: 'Retail & Grocery',
+        address: 'N/A',
+        phone: formData.phone,
+        email: formData.email,
+        primaryLang: 'English',
+        regWelcomeEn: 'Welcome to our business!',
+        regWelcomeSi: 'අපගේ ව්‍යාපාරයට ඔබව සාදරයෙන් පිළිගනිමු!',
+        termsEn: 'All sales are final. Thank you.',
+        termsSi: 'සියලුම අලෙවියන් අවසාන වේ. ස්තූතියි.',
+        currency: 'LKR (රුපියල්)',
+        tin: '',
+        logo: '',
+        deliveryMethod: formData.deliveryMethod
       });
 
       setSuccessMsg(`Account for ${formData.businessName} is now live!`);
-      setFormData({ businessName: '', ownerName: '', email: '', phone: '', username: '', password: '' });
+      setFormData({ businessName: '', ownerName: '', email: '', phone: '', username: '', password: '', deliveryMethod: 'Courier Service' });
       
       setTimeout(() => {
         setShowModal(false);
@@ -110,7 +132,73 @@ const SuperAdmin: React.FC = () => {
     }
   };
 
-  const filteredOwners = owners.filter(owner => 
+  const handleApproveSubscription = async (subId: string, userId: string) => {
+    if (!userId) {
+      return Swal.fire({
+        title: 'Error!',
+        text: 'User ID is missing for this request. Cannot approve.',
+        icon: 'error',
+        confirmButtonColor: '#ef4444'
+      });
+    }
+
+    const result = await Swal.fire({
+      title: 'Approve Subscription?',
+      text: "This will unlock the dashboard and all premium features for this client.",
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Yes, Approve it!',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (result.isConfirmed) {
+      setApprovingId(subId);
+      try {
+        // 1. Update Subscription Status
+        await updateDoc(doc(db, "subscriptions", subId), { 
+          status: 'approved',
+          approvedAt: new Date().toISOString()
+        });
+
+        // 2. Update User License Status
+        // We update both 'isSubscribed' and 'status' to match user requirements
+        await updateDoc(doc(db, "users", userId), { 
+          isSubscribed: true,
+          status: 'active',
+          subscriptionStatus: 'approved'
+        });
+
+        // 3. Update Business Owner Status if it exists
+        await updateDoc(doc(db, "businessOwners", userId), { 
+          status: 'Active'
+        }).catch(() => {
+          // Ignore if owner doc ID is different from user ID (though they should match in this system)
+          console.log("Owner doc update skipped or failed - non-critical");
+        });
+
+        Swal.fire({
+          title: 'Success!',
+          text: 'Subscription has been approved and the license is now active.',
+          icon: 'success',
+          confirmButtonColor: '#10b981'
+        });
+      } catch (err: any) {
+        console.error("Approval Error:", err);
+        Swal.fire({
+          title: 'Approval Failed',
+          text: err.message || 'An unexpected error occurred during the approval process.',
+          icon: 'error',
+          confirmButtonColor: '#ef4444'
+        });
+      } finally {
+        setApprovingId(null);
+      }
+    }
+  };
+
+  const filteredOwners = (owners || []).filter(owner => 
     owner.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     owner.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     owner.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -175,7 +263,7 @@ const SuperAdmin: React.FC = () => {
                     <p className="text-sm text-gray-400 font-medium tracking-tight">Accessing high-security records...</p>
                   </td>
                 </tr>
-              ) : filteredOwners.length > 0 ? (
+              ) : (filteredOwners || []).length > 0 ? (
                 filteredOwners.map(owner => (
                   <tr key={owner.id} className="hover:bg-gray-50 group transition-colors">
                     <td className="px-8 py-6">
@@ -211,6 +299,83 @@ const SuperAdmin: React.FC = () => {
                     <p className="text-gray-400 text-sm font-bold tracking-tight">
                       {searchTerm ? `No matches for "${searchTerm}"` : 'No enterprise clients registered.'}
                     </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Recent Subscription Requests Section */}
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-8 border-b border-gray-50 bg-gray-50/20 flex items-center justify-between">
+          <h3 className="text-xl font-black text-gray-800 tracking-tighter">Recent Subscription Requests</h3>
+          <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest">
+            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            Live Requests
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left min-w-[800px]">
+            <thead>
+              <tr className="bg-gray-50 text-gray-400 text-[10px] uppercase font-bold tracking-widest">
+                <th className="px-8 py-4">Client Email</th>
+                <th className="px-8 py-4">Business</th>
+                <th className="px-8 py-4">Plan Requested</th>
+                <th className="px-8 py-4">Price</th>
+                <th className="px-8 py-4">Status</th>
+                <th className="px-8 py-4">Requested At</th>
+                <th className="px-8 py-4 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {(subscriptions || []).length > 0 ? (
+                [...subscriptions].sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(sub => (
+                  <tr key={sub.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-8 py-6 font-bold text-gray-800 text-sm">{sub.userEmail}</td>
+                    <td className="px-8 py-6 text-sm text-gray-500 font-bold">{sub.businessName || 'N/A'}</td>
+                    <td className="px-8 py-6">
+                      <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-blue-100">
+                        {sub.planName}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6 font-black text-gray-900 text-sm">Rs. {sub.price.toLocaleString()}</td>
+                    <td className="px-8 py-6">
+                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg ${
+                        sub.status === 'pending' ? 'bg-amber-500 text-white shadow-amber-50' : 
+                        sub.status === 'approved' ? 'bg-emerald-500 text-white shadow-emerald-50' : 
+                        'bg-red-500 text-white shadow-red-50'
+                      }`}>
+                        {sub.status}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6 text-xs text-gray-400 font-bold">
+                      {sub.timestamp?.toDate ? sub.timestamp.toDate().toLocaleString() : 'Just now'}
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      {sub.status === 'pending' && (
+                        <button 
+                          onClick={() => {
+                            console.log('Approve Button Clicked!', { subId: sub.id, userId: sub.userId });
+                            handleApproveSubscription(sub.id!, sub.userId);
+                          }}
+                          disabled={approvingId === sub.id}
+                          style={{ cursor: 'pointer', position: 'relative', zIndex: 9999 }}
+                          className={`px-4 py-2 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center gap-2 ml-auto ${approvingId === sub.id ? 'opacity-70 cursor-wait' : ''}`}
+                        >
+                          {approvingId === sub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                          {approvingId === sub.id ? 'Processing...' : 'Approve'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-gray-400 text-sm font-bold">
+                    No active subscription requests.
                   </td>
                 </tr>
               )}
@@ -256,6 +421,18 @@ const SuperAdmin: React.FC = () => {
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Secure Contact</label>
                   <input required placeholder="07x xxxxxxx" type="text" className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 font-bold" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                </div>
+                
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Delivery Method</label>
+                  <select 
+                    className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 font-bold"
+                    value={formData.deliveryMethod}
+                    onChange={(e) => setFormData({...formData, deliveryMethod: e.target.value as any})}
+                  >
+                    <option value="Courier Service">Courier Service</option>
+                    <option value="Post Office">Post Office</option>
+                  </select>
                 </div>
                 
                 <div className="col-span-1 md:col-span-2 h-px bg-gray-100 my-2"></div>

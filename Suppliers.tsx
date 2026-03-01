@@ -49,7 +49,7 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, onSaveSupplier, onDele
     setIsModalOpen(false);
   };
 
-  const filtered = suppliers.filter(s => 
+  const filtered = (suppliers || []).filter(s => 
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     s.contactPerson.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -88,7 +88,7 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, onSaveSupplier, onDele
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.length > 0 ? filtered.map((s) => (
+              {(filtered || []).length > 0 ? (filtered || []).map((s) => (
                 <tr key={s.id} className="hover:bg-gray-50 group transition-colors">
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-3">

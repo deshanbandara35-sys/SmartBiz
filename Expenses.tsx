@@ -47,7 +47,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, onSaveExpense, onDeleteEx
     setIsModalOpen(false);
   };
 
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalExpenses = (expenses || []).reduce((sum, e) => sum + (e.amount || 0), 0);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -94,7 +94,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, onSaveExpense, onDeleteEx
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {expenses.length > 0 ? expenses.map((e) => (
+              {(expenses || []).length > 0 ? (expenses || []).map((e) => (
                 <tr key={e.id} className="hover:bg-gray-50 group transition-colors">
                   <td className="px-8 py-6 font-bold text-gray-800">{e.description}</td>
                   <td className="px-8 py-6">

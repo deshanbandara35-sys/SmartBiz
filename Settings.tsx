@@ -9,7 +9,6 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = ({ currentSettings, onSaveSettings }) => {
-  const [logo, setLogo] = useState<string | null>(null);
   const [formData, setFormData] = useState<BusinessSettings>(currentSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -22,7 +21,7 @@ const Settings: React.FC<SettingsProps> = ({ currentSettings, onSaveSettings }) 
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => setLogo(reader.result as string);
+      reader.onloadend = () => setFormData({ ...formData, logo: reader.result as string });
       reader.readAsDataURL(file);
     }
   };
@@ -116,6 +115,17 @@ const Settings: React.FC<SettingsProps> = ({ currentSettings, onSaveSettings }) 
                   className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[#1d70d1]/20 focus:outline-none text-gray-900 font-bold transition-all" 
                 />
               </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Delivery Method</label>
+                <select 
+                  value={formData.deliveryMethod || 'Courier Service'}
+                  onChange={e => setFormData({...formData, deliveryMethod: e.target.value as any})}
+                  className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[#1d70d1]/20 focus:outline-none text-gray-900 font-bold transition-all"
+                >
+                  <option value="Courier Service">Courier Service</option>
+                  <option value="Post Office">Post Office</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -166,7 +176,7 @@ const Settings: React.FC<SettingsProps> = ({ currentSettings, onSaveSettings }) 
           <div className="bg-white p-8 md:p-10 rounded-[3rem] shadow-sm border border-gray-100 flex flex-col items-center text-center">
             <h3 className="text-lg font-black text-gray-800 mb-6 w-full text-left">Brand Assets</h3>
             <div className="w-full aspect-square bg-gray-50 border-4 border-dashed border-gray-100 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 relative overflow-hidden group hover:border-blue-200 transition-all">
-              {logo ? <img src={logo} className="w-full h-full object-contain p-8" alt="Logo" /> : <Upload className="w-8 h-8 text-gray-300" />}
+              {formData.logo ? <img src={formData.logo} className="w-full h-full object-contain p-8" alt="Logo" /> : <Upload className="w-8 h-8 text-gray-300" />}
               <input type="file" onChange={handleLogoChange} className="absolute inset-0 opacity-0 cursor-pointer" />
             </div>
           </div>
